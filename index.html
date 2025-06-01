@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>App Horarios con Firestore</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; }
+  #app, #logoutBtn { display: none; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
+  input { width: 70px; }
+  button { margin-right: 10px; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h2>Iniciar sesión</h2>
+  <input id="clave" type="password" placeholder="Clave" />
+  <button onclick="iniciarSesion()">Entrar</button>
+</div>
+
+<div id="app">
+  <h2>Horario de Trabajadores</h2>
+  <input id="busqueda" type="text" placeholder="Buscar trabajador..." oninput="mostrarTabla()" />
+  <div style="margin-top:10px;">
+    <button id="btnAgregar" onclick="agregarTrabajador()">Agregar trabajador</button>
+    <button id="btnExportar" onclick="exportarExcel()">Exportar Excel</button>
+    <button id="logoutBtn" onclick="cerrarSesion()">Cerrar sesión</button>
+  </div>
+  <div id="tabla"></div>
+</div>
+
+<!-- Firebase SDKs como módulos -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+  import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC2DQQwIHLYwGTJWPfb5aYVpT_gYNrrDt0",
+    authDomain: "horarioapp-70a6c.firebaseapp.com",
+    projectId: "horarioapp-70a6c",
+    storageBucket: "horarioapp-70a6c.firebasestorage.app",
+    messagingSenderId: "723849222277",
+    appId: "1:723849222277:web:2ecaac953a4c33b86031ec"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
+  const CLAVES = { jefe: "sodimac", viewer: "plazanorte" };
+
+  // Estado global
+  let rol = null;
+  let trabajadores = [];
+
+  // Iniciar sesión
+  window.iniciarSesion = async function() {
+    const claveInput = document.getElementById("clave").value.trim();
+    if (claveInput === CLAVES.jefe) rol = "jefe";
+    else if (claveInput === CLAVES.viewer) rol = "viewer";
+    else {
+      alert("Clave incorrecta");
+      return;
+    }
+
+    localStorage.setItem("rol", rol);
+    document.getElementById("login").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    document.getElementById("logoutBtn").style.display = "inline-block";
+
+    await cargarTrabajadores();
+    mostrarTabla();
+    mostrarBotonesSegunRol();
+  };
+
+  // Cerrar sesión
+  window.cerrarSesion = function() {
+    localStorage.removeItem("rol");
+    rol = null;
+    trabajadores = [];
+    document.getElementById("login").style.display = "block";
+    document.getElementById("app").style.display = "none";
+    document.getElementById("logoutBtn").style.display = "none";
+    document.getElementById("clave").value = "";
+  };
+
+  // Mostrar/ocultar botones según rol
+  function mostrarBotonesSegunRol() {
+    document.getElementById("btnAgregar").style.display = rol === "jefe" ? "inline-block" : "none";
+    document.getElementById("btnExportar").style.display = rol === "jefe" ? "inline-block" : "none";
+  }
+
+  // Cargar trabajadores desde Firestore
+  async function cargarTrabajadores() {
+    const coleccion = collection(db, "trabajadores");
+    const q = query(coleccion, orderBy("nombre"));
+    const querySnapshot = await getDocs(q);
+    trabajadores = [];
+    querySnapshot.forEach(docSnap => {
+      trabajadores.push({ id: docSnap.id, ...docSnap.data() });
+    });
+  }
+
+  // Agregar trabajador
+  window.agregarTrabajador = async function() {
+    const nombre = prompt("Nombre del trabajador:");
+    if (!nombre || nombre.trim() === "") return;
+    // Crear nuevo documento en Firestore
+    const coleccion = collection(db, "trabajadores");
+    const nuevo = {
+      nombre: nombre.trim(),
+      horario: {}
+    };
+    const docRef = await addDoc(coleccion, nuevo);
+    trabajadores.push({ id: docRef.id, ...nuevo });
+    trabajadores.sort((a,b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+    mostrarTabla();
+  };
+
+  // Actualizar campo de horario en Firestore
+  window.actualizarCampo = async function(index, dia, campo, valor) {
+    const trabajador = trabajadores[index];
+    if (!trabajador) return;
+
+    if (!trabajador.horario) trabajador.horario = {};
+    if (!trabajador.horario[dia]) trabajador.horario[dia] = {};
+
+    trabajador.horario[dia][campo] = valor;
+
+    // Actualizar en Firestore
+    const docRef = doc(db, "trabajadores", trabajador.id);
+    await updateDoc(docRef, { horario: trabajador.horario });
+  };
+
+  // Eliminar trabajador
+  window.eliminarTrabajador = async function(index) {
+    if (!confirm("¿Seguro que quieres eliminar este trabajador?")) return;
+    const trabajador = trabajadores[index];
+    if (!trabajador) return;
+
+    const docRef = doc(db, "trabajadores", trabajador.id);
+    await deleteDoc(docRef);
+
+    trabajadores.splice(index, 1);
+    mostrarTabla();
+  };
+
+  // Mostrar tabla en HTML
+  window.mostrarTabla = function() {
+    const filtro = document.getElementById("busqueda").value.toLowerCase();
+    const tablaDiv = document.getElementById("tabla");
+
+    let trabajadoresFiltrados = trabajadores.filter(t => t.nombre.toLowerCase().includes(filtro));
+    trabajadoresFiltrados.sort((a,b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+
+    let html = `<table><thead><tr><th>Nombre</th>`;
+    DIAS.forEach(dia => {
+      html += `<th>${dia.charAt(0).toUpperCase() + dia.slice(1)}</th>`;
+    });
+    html += `<th>Acción</th></tr></thead><tbody>`;
+
+    trabajadoresFiltrados.forEach((trab, i) => {
+      html += `<tr><td>${trab.nombre}</td>`;
+      DIAS.forEach(dia => {
+        const h = trab.horario?.[dia] || {};
+        if (rol === "jefe") {
+          html += `<td>
+            <input placeholder="Entrada" value="${h.entrada || ''}" onchange="actualizarCampo(${i}, '${dia}', 'entrada', this.value)">
+            <input placeholder="Salida" value="${h.salida || ''}" onchange="actualizarCampo(${i}, '${dia}', 'salida', this.value)">
+            <input placeholder="Refrigerio" value="${h.refrigerio || ''}" onchange="actualizarCampo(${i}, '${dia}', 'refrigerio', this.value)">
+            <input placeholder="Capacitación" value="${h.capacitacion || ''}" onchange="actualizarCampo(${i}, '${dia}', 'capacitacion', this.value)">
+            <input placeholder="Lactancia" value="${h.lactancia || ''}" onchange="actualizarCampo(${i}, '${dia}', 'lactancia', this.value)">
+          </td>`;
+        } else {
+          html += `<td style="font-size: 0.9em; line-height: 1.2em;">
+            Entrada: ${h.entrada || '-'}<br>
+            Salida: ${h.salida || '-'}<br>
+            Refrigerio: ${h.refrigerio || '-'}<br>
+            Capacitación: ${h.capacitacion || '-'}<br>
+            Lactancia: ${h.lactancia || '-'}
+          </td>`;
+        }
+      });
+      if (rol === "jefe") {
+        html += `<td><button onclick="eliminarTrabajador(${i})">🗑️</button></td>`;
+      } else {
+        html += `<td>-</td>`;
+      }
+      html += `</tr>`;
+    });
+
+    html += `</tbody></table>`;
+    tablaDiv.innerHTML = html;
+  };
+
+  // Exportar Excel simple (opcional)
+  window.exportarExcel = function() {
+    alert("Función exportar Excel no implementada en este ejemplo.");
+  };
+
+  // Al cargar la página, intentar restaurar sesión
+  window.onload = async () => {
+    const rolGuardado = localStorage.getItem("rol");
+    if (rolGuardado === "jefe" || rolGuardado === "viewer") {
+      rol = rolGuardado;
+      document.getElementById("login").style.display = "none";
+      document.getElementById("app").style.display = "block";
+      document.getElementById("logoutBtn").style.display = "inline-block";
+      mostrarBotonesSegunRol();
+      await cargarTrabajadores();
+      mostrarTabla();
+    }
+  };
+</script>
+
+</body>
+</html>

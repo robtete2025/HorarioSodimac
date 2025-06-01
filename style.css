@@ -1,0 +1,109 @@
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #ffffff;
+  color: #003366; /* azul oscuro */
+  padding: 20px;
+  margin: 0;
+}
+
+h2 {
+  color: #003366; /* azul oscuro */
+  border-bottom: 3px solid #ffcc00; /* amarillo */
+  padding-bottom: 8px;
+  margin-bottom: 20px;
+}
+
+input, button {
+  font-size: 1rem;
+  padding: 8px 12px;
+  border-radius: 5px;
+  border: 1.5px solid #003366;
+  transition: all 0.3s ease;
+}
+
+input {
+  color: #003366;
+  margin-right: 10px;
+}
+
+input::placeholder {
+  color: #999999;
+}
+
+input:focus {
+  border-color: #ffcc00; /* amarillo */
+  outline: none;
+}
+
+button {
+  background-color: #cc0000; /* rojo */
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  margin-right: 10px;
+  box-shadow: 0 4px 6px rgba(204,0,0,0.3);
+}
+
+button:hover {
+  background-color: #ffcc00; /* amarillo */
+  color: #003366;
+  box-shadow: 0 4px 8px rgba(255,204,0,0.6);
+}
+
+#app, #logoutBtn {
+  display: none;
+  margin-top: 10px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 15px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+th, td {
+  border: 1px solid #003366;
+  padding: 10px 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+th {
+  background-color: #003366;
+  color: #ffffff;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+td input {
+  width: 60px;
+  margin: 2px 0;
+  font-size: 0.9rem;
+  padding: 5px;
+  border: 1px solid #003366;
+  border-radius: 4px;
+}
+
+td button {
+  background-color: #cc0000;
+  padding: 5px 8px;
+  font-size: 0.9rem;
+  border-radius: 4px;
+}
+
+td button:hover {
+  background-color: #ffcc00;
+  color: #003366;
+}
+
+#busqueda {
+  width: 300px;
+  max-width: 100%;
+  border: 1.5px solid #003366;
+  border-radius: 5px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  color: #003366;
+}
