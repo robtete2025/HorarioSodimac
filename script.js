@@ -1,12 +1,8 @@
 const DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
-const CLAVES = {
-  jefe: "sodimac",
-  viewer: "plazanorte"
-};
+const CLAVES = { jefe: "sodimac", viewer: "plazanorte" };
 
-let trabajadores = []; // lista cargada desde Firestore
+let trabajadores = [];
 
-// Iniciar sesión
 async function iniciarSesion() {
   const clave = document.getElementById("clave").value.trim();
   let rol = null;
@@ -17,27 +13,24 @@ async function iniciarSesion() {
     localStorage.setItem("rol", rol);
     document.getElementById("login").style.display = "none";
     document.getElementById("app").style.display = "block";
-    await cargarTrabajadores(); // cargar desde Firestore
+    await cargarTrabajadores();
     mostrarBotonesSegunRol();
   } else {
     alert("Clave incorrecta");
   }
 }
 
-// Cerrar sesión
 function cerrarSesion() {
   localStorage.removeItem("rol");
   location.reload();
 }
 
-// Mostrar botones según rol
 function mostrarBotonesSegunRol() {
   const rol = localStorage.getItem("rol");
   document.querySelector("button[onclick='agregarTrabajador()']").style.display = rol === "jefe" ? "inline-block" : "none";
   document.querySelector("button[onclick='exportarExcel()']").style.display = rol === "jefe" ? "inline-block" : "none";
 }
 
-// Cargar trabajadores desde Firestore
 async function cargarTrabajadores() {
   const snapshot = await db.collection("trabajadores").get();
   trabajadores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -45,7 +38,6 @@ async function cargarTrabajadores() {
   mostrarTabla();
 }
 
-// Guardar o actualizar trabajador
 async function guardarTrabajador(trabajador) {
   if (trabajador.id) {
     const id = trabajador.id;
@@ -59,7 +51,6 @@ async function guardarTrabajador(trabajador) {
   await cargarTrabajadores();
 }
 
-// Agregar trabajador
 async function agregarTrabajador() {
   const nombre = prompt("Nombre del trabajador:");
   if (nombre && nombre.trim() !== "") {
@@ -68,7 +59,6 @@ async function agregarTrabajador() {
   }
 }
 
-// Eliminar trabajador
 async function eliminarTrabajador(id) {
   if (confirm("¿Seguro que quieres eliminar este trabajador?")) {
     await db.collection("trabajadores").doc(id).delete();
@@ -76,7 +66,6 @@ async function eliminarTrabajador(id) {
   }
 }
 
-// Actualizar campo de horario
 async function actualizarCampo(id, dia, campo, valor) {
   const trabajador = trabajadores.find(t => t.id === id);
   if (!trabajador) return;
@@ -85,18 +74,16 @@ async function actualizarCampo(id, dia, campo, valor) {
   if (!trabajador.horario[dia]) trabajador.horario[dia] = {};
 
   trabajador.horario[dia][campo] = valor;
+
   await guardarTrabajador(trabajador);
 }
 
-// Mostrar tabla
 function mostrarTabla() {
   const rol = localStorage.getItem("rol");
   const filtro = document.getElementById("busqueda").value.toLowerCase();
-
   const filtrados = trabajadores.filter(trab => trab.nombre.toLowerCase().includes(filtro));
-  filtrados.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
 
-  let html = `<table border="1" cellpadding="5" cellspacing="0"><thead>
+  let html = `<h2>MALLA DE TRABAJADORES</h2><table border="1" cellpadding="5" cellspacing="0"><thead>
     <tr><th>Nombre</th>${DIAS.map(d => `<th>${d.charAt(0).toUpperCase() + d.slice(1)}</th>`).join('')}<th>Acción</th></tr>
   </thead><tbody>`;
 
@@ -105,26 +92,33 @@ function mostrarTabla() {
     DIAS.forEach(dia => {
       const h = trab.horario?.[dia] || {};
       if (rol === "jefe") {
-        html += `<td>
-          <input style="width: 70px;" placeholder="Entrada" value="${h.entrada || ''}" onchange="actualizarCampo('${trab.id}', '${dia}', 'entrada', this.value)">
-          <input style="width: 70px;" placeholder="Salida" value="${h.salida || ''}" onchange="actualizarCampo('${trab.id}', '${dia}', 'salida', this.value)">
-          <input style="width: 70px;" placeholder="Refrigerio" value="${h.refrigerio || ''}" onchange="actualizarCampo('${trab.id}', '${dia}', 'refrigerio', this.value)">
-          <input style="width: 70px;" placeholder="Capacitación" value="${h.capacitacion || ''}" onchange="actualizarCampo('${trab.id}', '${dia}', 'capacitacion', this.value)">
-          <input style="width: 70px;" placeholder="Lactancia" value="${h.lactancia || ''}" onchange="actualizarCampo('${trab.id}', '${dia}', 'lactancia', this.value)">
-        </td>`;
+        const campos = ["entrada", "salida", "refrigerio", "capacitacion", "lactancia", "fecha"];
+        const inputs = campos.map(campo => {
+          const valor = h[campo] || "";
+          let color = "";
+          if (["libre", "vacaciones"].includes(valor.toLowerCase())) {
+            color = "background-color: yellow;";
+          }
+          const placeholder = campo === "fecha" ? "dd/mm" : campo.charAt(0).toUpperCase() + campo.slice(1);
+          return `<input style="width: 70px; ${color}" placeholder="${placeholder}" value="${valor}" onchange="actualizarCampo('${trab.id}', '${dia}', '${campo}', this.value)">`;
+        }).join("");
+        html += `<td>${inputs}</td>`;
       } else {
-        html += `<td style="font-size: 0.9em; line-height: 1.2em;">
+        html += `<td style="font-size: 0.8em; line-height: 1.2em;">
           Entrada: ${h.entrada || '-'}<br>
           Salida: ${h.salida || '-'}<br>
           Refrigerio: ${h.refrigerio || '-'}<br>
           Capacitación: ${h.capacitacion || '-'}<br>
-          Lactancia: ${h.lactancia || '-'}
+          Lactancia: ${h.lactancia || '-'}<br>
+          Fecha: ${h.fecha || '-'}
         </td>`;
       }
     });
-    html += rol === "jefe"
-      ? `<td><button onclick="eliminarTrabajador('${trab.id}')">🗑️</button></td>`
-      : `<td>-</td>`;
+    if (rol === "jefe") {
+      html += `<td><button onclick="eliminarTrabajador('${trab.id}')">🗑️</button></td>`;
+    } else {
+      html += `<td>-</td>`;
+    }
     html += `</tr>`;
   });
 
@@ -132,53 +126,10 @@ function mostrarTabla() {
   document.getElementById("tabla").innerHTML = html;
 }
 
-// Exportar Excel
 function exportarExcel() {
-  const headers = ["Nombre"];
-  const subHeaders = [];
-  const data = [];
-
-  DIAS.forEach(dia => {
-    ["Entrada", "Salida", "Refrigerio", "Capacitación", "Lactancia"].forEach(sub => {
-      headers.push(dia.charAt(0).toUpperCase() + dia.slice(1));
-      subHeaders.push(sub);
-    });
-  });
-
-  trabajadores.forEach(trab => {
-    const fila = [trab.nombre];
-    DIAS.forEach(dia => {
-      const h = trab.horario?.[dia] || {};
-      fila.push(
-        h.entrada || "",
-        h.salida || "",
-        h.refrigerio || "",
-        h.capacitacion || "",
-        h.lactancia || ""
-      );
-    });
-    data.push(fila);
-  });
-
-  const finalData = [headers, subHeaders, ...data];
-  const worksheet = XLSX.utils.aoa_to_sheet(finalData);
-
-  const columnWidths = finalData[0].map((_, colIndex) => {
-    const maxLength = finalData.reduce((acc, row) => {
-      const val = row[colIndex] ? row[colIndex].toString() : "";
-      return Math.max(acc, val.length);
-    }, 10);
-    return { wch: maxLength + 2 };
-  });
-  worksheet["!cols"] = columnWidths;
-
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Horario");
-
-  XLSX.writeFile(workbook, "horario.xlsx");
+  alert("Exportar a Excel aún no implementado en esta versión.");
 }
 
-// Restaurar sesión si hay rol guardado
 window.onload = () => {
   if (localStorage.getItem("rol")) {
     document.getElementById("login").style.display = "none";
@@ -187,12 +138,3 @@ window.onload = () => {
     mostrarBotonesSegunRol();
   }
 };
-
-// Exponer funciones al HTML
-window.iniciarSesion = iniciarSesion;
-window.cerrarSesion = cerrarSesion;
-window.agregarTrabajador = agregarTrabajador;
-window.exportarExcel = exportarExcel;
-window.actualizarCampo = actualizarCampo;
-window.eliminarTrabajador = eliminarTrabajador;
-window.mostrarTabla = mostrarTabla;
