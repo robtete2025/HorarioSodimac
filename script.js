@@ -24,11 +24,13 @@ async function iniciarSesion() {
   }
 }
 
+// Cerrar sesión
 function cerrarSesion() {
   localStorage.removeItem("rol");
   location.reload();
 }
 
+// Mostrar botones según rol
 function mostrarBotonesSegunRol() {
   const rol = localStorage.getItem("rol");
   document.querySelector("button[onclick='agregarTrabajador()']").style.display = rol === "jefe" ? "inline-block" : "none";
@@ -43,23 +45,21 @@ async function cargarTrabajadores() {
   mostrarTabla();
 }
 
-// Guardar o actualizar trabajador en Firestore
+// Guardar o actualizar trabajador
 async function guardarTrabajador(trabajador) {
   if (trabajador.id) {
-    // Actualizar documento existente
     const id = trabajador.id;
     const data = { ...trabajador };
     delete data.id;
     await db.collection("trabajadores").doc(id).set(data);
   } else {
-    // Crear nuevo trabajador
     const docRef = await db.collection("trabajadores").add(trabajador);
     trabajador.id = docRef.id;
   }
   await cargarTrabajadores();
 }
 
-// Agregar trabajador nuevo
+// Agregar trabajador
 async function agregarTrabajador() {
   const nombre = prompt("Nombre del trabajador:");
   if (nombre && nombre.trim() !== "") {
@@ -68,7 +68,7 @@ async function agregarTrabajador() {
   }
 }
 
-// Eliminar trabajador por id
+// Eliminar trabajador
 async function eliminarTrabajador(id) {
   if (confirm("¿Seguro que quieres eliminar este trabajador?")) {
     await db.collection("trabajadores").doc(id).delete();
@@ -76,9 +76,8 @@ async function eliminarTrabajador(id) {
   }
 }
 
-// Actualizar campo horario de un trabajador y guardar
+// Actualizar campo de horario
 async function actualizarCampo(id, dia, campo, valor) {
-  // Buscar trabajador
   const trabajador = trabajadores.find(t => t.id === id);
   if (!trabajador) return;
 
@@ -86,11 +85,10 @@ async function actualizarCampo(id, dia, campo, valor) {
   if (!trabajador.horario[dia]) trabajador.horario[dia] = {};
 
   trabajador.horario[dia][campo] = valor;
-
   await guardarTrabajador(trabajador);
 }
 
-// Mostrar tabla de trabajadores y horarios
+// Mostrar tabla
 function mostrarTabla() {
   const rol = localStorage.getItem("rol");
   const filtro = document.getElementById("busqueda").value.toLowerCase();
@@ -124,11 +122,9 @@ function mostrarTabla() {
         </td>`;
       }
     });
-    if (rol === "jefe") {
-      html += `<td><button onclick="eliminarTrabajador('${trab.id}')">🗑️</button></td>`;
-    } else {
-      html += `<td>-</td>`;
-    }
+    html += rol === "jefe"
+      ? `<td><button onclick="eliminarTrabajador('${trab.id}')">🗑️</button></td>`
+      : `<td>-</td>`;
     html += `</tr>`;
   });
 
@@ -136,7 +132,7 @@ function mostrarTabla() {
   document.getElementById("tabla").innerHTML = html;
 }
 
-// Exportar Excel: igual, con la variable trabajadores que ya carga desde Firestore
+// Exportar Excel
 function exportarExcel() {
   const headers = ["Nombre"];
   const subHeaders = [];
@@ -182,7 +178,7 @@ function exportarExcel() {
   XLSX.writeFile(workbook, "horario.xlsx");
 }
 
-// Al cargar la página: mostrar login o app según rol
+// Restaurar sesión si hay rol guardado
 window.onload = () => {
   if (localStorage.getItem("rol")) {
     document.getElementById("login").style.display = "none";
@@ -191,3 +187,12 @@ window.onload = () => {
     mostrarBotonesSegunRol();
   }
 };
+
+// Exponer funciones al HTML
+window.iniciarSesion = iniciarSesion;
+window.cerrarSesion = cerrarSesion;
+window.agregarTrabajador = agregarTrabajador;
+window.exportarExcel = exportarExcel;
+window.actualizarCampo = actualizarCampo;
+window.eliminarTrabajador = eliminarTrabajador;
+window.mostrarTabla = mostrarTabla;
