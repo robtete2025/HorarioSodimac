@@ -9,21 +9,26 @@
     #app, #logoutBtn { display: none; margin-top: 10px; }
     table { border-collapse: collapse; width: 100%; margin-top: 10px; }
     th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
-    input { width: 70px; }
+    input[type="text"], input[type="number"] { width: 65px; font-size: 0.85em; }
+    input.fecha { width: 60px; background-color: #f2f2f2; font-size: 0.8em; border: none; text-align: center; }
     button { margin-right: 10px; }
-    .resaltado { background-color: yellow; font-weight: bold; }
+    .resaltado {
+      background-color: yellow !important;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
 
+<h2>MALLA DE TRABAJADORES</h2>
+
 <div id="login">
-  <h2>Iniciar sesión</h2>
+  <h3>Iniciar sesión</h3>
   <input id="clave" type="password" placeholder="Clave" />
   <button onclick="iniciarSesion()">Entrar</button>
 </div>
 
 <div id="app">
-  <h2>MALLA DE TRABAJADORES</h2>
   <input id="busqueda" type="text" placeholder="Buscar trabajador..." oninput="mostrarTabla()" />
   <div style="margin-top:10px;">
     <button id="btnAgregar" onclick="agregarTrabajador()">Agregar trabajador</button>
@@ -33,17 +38,20 @@
   <div id="tabla"></div>
 </div>
 
+<!-- Firebase y lógica de la app -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
   import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
 
+  // 🔐 Firebase Config del proyecto REAL (horariosodimac)
   const firebaseConfig = {
-    apiKey: "AIzaSyC2DQQwIHLYwGTJWPfb5aYVpT_gYNrrDt0",
-    authDomain: "horarioapp-70a6c.firebaseapp.com",
-    projectId: "horarioapp-70a6c",
-    storageBucket: "horarioapp-70a6c.firebasestorage.app",
-    messagingSenderId: "723849222277",
-    appId: "1:723849222277:web:2ecaac953a4c33b86031ec"
+    apiKey: "AIzaSyDzwgB4rhkq_nnm3NIIsMz7II3DoWORpyU",
+    authDomain: "horariosodimac.firebaseapp.com",
+    projectId: "horariosodimac",
+    storageBucket: "horariosodimac.firebasestorage.app",
+    messagingSenderId: "751199673761",
+    appId: "1:751199673761:web:982a0a74863fc82ccc3fe0",
+    measurementId: "G-RB4E6D71P7"
   };
 
   const app = initializeApp(firebaseConfig);
@@ -51,11 +59,10 @@
 
   const DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
   const CLAVES = { jefe: "sodimac", viewer: "plazanorte" };
-
   let rol = null;
   let trabajadores = [];
 
-  window.iniciarSesion = async function () {
+  window.iniciarSesion = async function() {
     const claveInput = document.getElementById("clave").value.trim();
     if (claveInput === CLAVES.jefe) rol = "jefe";
     else if (claveInput === CLAVES.viewer) rol = "viewer";
@@ -65,13 +72,12 @@
     document.getElementById("login").style.display = "none";
     document.getElementById("app").style.display = "block";
     document.getElementById("logoutBtn").style.display = "inline-block";
-
     await cargarTrabajadores();
     mostrarTabla();
     mostrarBotonesSegunRol();
   };
 
-  window.cerrarSesion = function () {
+  window.cerrarSesion = function() {
     localStorage.removeItem("rol");
     rol = null;
     trabajadores = [];
@@ -88,91 +94,103 @@
 
   async function cargarTrabajadores() {
     const q = query(collection(db, "trabajadores"), orderBy("nombre"));
-    const querySnapshot = await getDocs(q);
-    trabajadores = querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    const snap = await getDocs(q);
+    trabajadores = [];
+    snap.forEach(docSnap => {
+      trabajadores.push({ id: docSnap.id, ...docSnap.data() });
+    });
   }
 
-  window.agregarTrabajador = async function () {
+  window.agregarTrabajador = async function() {
     const nombre = prompt("Nombre del trabajador:");
-    if (!nombre?.trim()) return;
-    const docRef = await addDoc(collection(db, "trabajadores"), {
-      nombre: nombre.trim(), horario: {}, fechas: {}
-    });
-    trabajadores.push({ id: docRef.id, nombre: nombre.trim(), horario: {}, fechas: {} });
-    trabajadores.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    if (!nombre || nombre.trim() === "") return;
+    const nuevo = { nombre: nombre.trim(), horario: {}, fechas: {} };
+    const docRef = await addDoc(collection(db, "trabajadores"), nuevo);
+    trabajadores.push({ id: docRef.id, ...nuevo });
+    trabajadores.sort((a,b) => a.nombre.localeCompare(b.nombre, 'es'));
     mostrarTabla();
   };
 
-  window.actualizarCampo = async function (index, dia, campo, valor) {
+  window.actualizarCampo = async function(index, dia, campo, valor) {
     const t = trabajadores[index];
+    if (!t) return;
     if (!t.horario) t.horario = {};
     if (!t.horario[dia]) t.horario[dia] = {};
     t.horario[dia][campo] = valor;
-    await updateDoc(doc(db, "trabajadores", t.id), { horario: t.horario });
+
+    const docRef = doc(db, "trabajadores", t.id);
+    await updateDoc(docRef, { horario: t.horario });
+    mostrarTabla();
   };
 
-  window.actualizarFecha = async function (index, dia, valor) {
+  window.actualizarFecha = async function(index, dia, valor) {
     const t = trabajadores[index];
     if (!t.fechas) t.fechas = {};
     t.fechas[dia] = valor;
-    await updateDoc(doc(db, "trabajadores", t.id), { fechas: t.fechas });
+    const docRef = doc(db, "trabajadores", t.id);
+    await updateDoc(docRef, { fechas: t.fechas });
   };
 
-  window.eliminarTrabajador = async function (index) {
-    if (!confirm("¿Seguro que quieres eliminar este trabajador?")) return;
-    await deleteDoc(doc(db, "trabajadores", trabajadores[index].id));
+  window.eliminarTrabajador = async function(index) {
+    if (!confirm("¿Eliminar trabajador?")) return;
+    const docRef = doc(db, "trabajadores", trabajadores[index].id);
+    await deleteDoc(docRef);
     trabajadores.splice(index, 1);
     mostrarTabla();
   };
 
-  function aplicarEstilo(texto) {
-    return /libre|vacaciones/i.test(texto) ? "resaltado" : "";
-  }
-
-  window.mostrarTabla = function () {
+  window.mostrarTabla = function() {
     const filtro = document.getElementById("busqueda").value.toLowerCase();
     const tablaDiv = document.getElementById("tabla");
 
-    const filtrados = trabajadores
-      .filter(t => t.nombre.toLowerCase().includes(filtro))
-      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+    const filtrados = trabajadores.filter(t => t.nombre.toLowerCase().includes(filtro));
+    filtrados.sort((a,b) => a.nombre.localeCompare(b.nombre, 'es'));
 
     let html = `<table><thead><tr><th>Nombre</th>`;
-    DIAS.forEach(d => html += `<th>${d.charAt(0).toUpperCase() + d.slice(1)}<br><small>(Día/Mes)</small></th>`);
+    DIAS.forEach(dia => {
+      html += `<th>${dia}<br><span style="font-size:0.75em;">(día/mes)</span></th>`;
+    });
     html += `<th>Acción</th></tr></thead><tbody>`;
 
     filtrados.forEach((t, i) => {
       html += `<tr><td>${t.nombre}</td>`;
-      DIAS.forEach(d => {
-        const h = t.horario?.[d] || {};
-        const f = t.fechas?.[d] || "";
+      DIAS.forEach(dia => {
+        const h = t.horario?.[dia] || {};
+        const fecha = t.fechas?.[dia] || "";
+        const resaltar = (txt) => {
+          return txt.toLowerCase().includes("libre") || txt.toLowerCase().includes("vacaciones");
+        };
+
         if (rol === "jefe") {
           html += `<td>
-            <input placeholder="Día/Mes" value="${f}" onchange="actualizarFecha(${i}, '${d}', this.value)">
-            <input class="${aplicarEstilo(h.entrada)}" placeholder="Entrada" value="${h.entrada || ''}" onchange="actualizarCampo(${i}, '${d}', 'entrada', this.value)">
-            <input class="${aplicarEstilo(h.salida)}" placeholder="Salida" value="${h.salida || ''}" onchange="actualizarCampo(${i}, '${d}', 'salida', this.value)">
-            <input class="${aplicarEstilo(h.refrigerio)}" placeholder="Refrigerio" value="${h.refrigerio || ''}" onchange="actualizarCampo(${i}, '${d}', 'refrigerio', this.value)">
-            <input class="${aplicarEstilo(h.capacitacion)}" placeholder="Capacitación" value="${h.capacitacion || ''}" onchange="actualizarCampo(${i}, '${d}', 'capacitacion', this.value)">
-            <input class="${aplicarEstilo(h.lactancia)}" placeholder="Lactancia" value="${h.lactancia || ''}" onchange="actualizarCampo(${i}, '${d}', 'lactancia', this.value)">
+            <input class="fecha" placeholder="dd/mm" value="${fecha}" onchange="actualizarFecha(${i}, '${dia}', this.value)">
+            <input placeholder="Entrada" value="${h.entrada || ''}" onchange="actualizarCampo(${i}, '${dia}', 'entrada', this.value)" class="${resaltar(h.entrada) ? 'resaltado' : ''}">
+            <input placeholder="Salida" value="${h.salida || ''}" onchange="actualizarCampo(${i}, '${dia}', 'salida', this.value)" class="${resaltar(h.salida) ? 'resaltado' : ''}">
+            <input placeholder="Refrigerio" value="${h.refrigerio || ''}" onchange="actualizarCampo(${i}, '${dia}', 'refrigerio', this.value)" class="${resaltar(h.refrigerio) ? 'resaltado' : ''}">
+            <input placeholder="Capacitación" value="${h.capacitacion || ''}" onchange="actualizarCampo(${i}, '${dia}', 'capacitacion', this.value)" class="${resaltar(h.capacitacion) ? 'resaltado' : ''}">
+            <input placeholder="Lactancia" value="${h.lactancia || ''}" onchange="actualizarCampo(${i}, '${dia}', 'lactancia', this.value)" class="${resaltar(h.lactancia) ? 'resaltado' : ''}">
           </td>`;
         } else {
-          html += `<td>
-            <div style="font-size:0.8em">${f}</div>
-            Entrada: ${h.entrada || '-'}<br>Salida: ${h.salida || '-'}<br>Refrigerio: ${h.refrigerio || '-'}<br>
-            Capacitación: ${h.capacitacion || '-'}<br>Lactancia: ${h.lactancia || '-'}
+          html += `<td style="font-size: 0.9em; line-height: 1.2em;">
+            ${fecha ? `<strong>${fecha}</strong><br>` : ""}
+            Entrada: ${h.entrada || '-'}<br>
+            Salida: ${h.salida || '-'}<br>
+            Refrigerio: ${h.refrigerio || '-'}<br>
+            Capacitación: ${h.capacitacion || '-'}<br>
+            Lactancia: ${h.lactancia || '-'}
           </td>`;
         }
       });
-      html += rol === "jefe" ? `<td><button onclick="eliminarTrabajador(${i})">🗑️</button></td>` : `<td>-</td>`;
-      html += `</tr>`;
+
+      html += `<td>${rol === "jefe" ? `<button onclick="eliminarTrabajador(${i})">🗑️</button>` : '-'}</td></tr>`;
     });
 
     html += `</tbody></table>`;
     tablaDiv.innerHTML = html;
   };
 
-  window.exportarExcel = function () {
-    alert("Función exportar aún no disponible.");
+  window.exportarExcel = function() {
+    alert("Función aún en desarrollo.");
   };
 
   window.onload = async () => {
@@ -188,5 +206,6 @@
     }
   };
 </script>
+
 </body>
 </html>
